@@ -1,0 +1,21 @@
+## Sources checked
+
+1.  Published article: G. F. Abass, A. Ahmad, C. Yang, Y. Liu, and T. J. Frankcombe, "Reassessing structural models of graphitic carbon nitride for reliable photocatalytic predictions," Materials Advances 7 (2026) 4234-4247. https://doi.org/10.1039/d6ma00065g. Relevant grounding: a buckled heptazine g-C3N4 monolayer is the energetic ground-state model, the work uses 2D periodic DFT slabs, and the SI supplies the optimized 56-atom buckled monolayer geometry. This source motivates the material class only; no elastic target in the tests is copied from it.
+
+2. Checked online: K. Choudhary, I. Kalish, R. Beams, et al., "High-throughput Identification and Characterization of Two-dimensional Materials using Density functional theory," Scientific Reports 7, 5179 (2017). https://doi.org/10.1038/s41598-017-05402-0.  Relevant grounding: the paper explicitly notes that elastic constants for layered materials are area-based rather than volume-based and rescales monolayer elastic constants to N/m to remove the arbitrary vacuum dimension.
+
+3. Checked online: "Two-Dimensional Tetrahex-GeC2: A Material with Tunable Electronic and Optical Properties Combined with Ultrahigh Carrier Mobility," *ACS Applied Materials & Interfaces* (2021). https://doi.org/10.1021/acsami.0c23017.  Relevant grounding: it obtains C11, C22, C12, and the in-plane shear stiffness from second derivatives of elastic energy, applies the 2D mechanical-stability condition, and evaluates angle-dependent Young's modulus and Poisson ratio for an anisotropic monolayer.
+
+4. Checked online: F. Mouhat and F.-X. Coudert, "Necessary and sufficient elastic stability conditions in various crystal systems," Physical Review B 90, 224104 (2014). https://doi.org/10.1103/PhysRevB.90.224104. Relevant grounding: elastic stability is positive definiteness of the unstressed harmonic stiffness tensor; for the 2D orthotropic stiffness block used here this gives the explicit Born conditions in the task.
+
+## Construction and verification note
+
+The task itself is original. Test targets are generated from the stated continuum-elasticity model using stiffness tensors selected by the author, then checked by a second implementation that uses a different inversion route and closed-form compliance expressions. The isotropic-limit cases are also checked analytically from E and nu.
+
+## Additional source inspected for this revision
+
+5. C. P. Herrero and R. Ramírez, "Elastic properties and mechanical stability of bilayer graphene: molecular dynamics simulations," *The European Physical Journal B* **96**, 147 (2023), https://doi.org/10.1140/epjb/s10051-023-00616-w. The user supplied the full article, which was inspected directly. Section 6.1, p. 8, Eq. (12) distinguishes engineering shear and stress-controlled compliance; p. 9, Eqs. (17)–(19) connect hydrostatic area response, compression modulus, and energy curvature. These support treating a mechanically relaxed response separately from a clamped energy curvature.
+
+The mixed-component minimization in Step 1 is an original extension of this constitutive reasoning to orthotropic mixed boundary conditions, rather than a numerical result copied from the article. The article's hexagonal symmetry, bilayer per-sheet normalization, molecular dynamics, temperature dependence, flexural modes, and pressure-driven spinodal model are not assumed in this unstressed monolayer task. No article-specific elastic constants are used as targets. The preceding four source entries and their checked-source wording are retained from the author's exact supplied source document; this revision independently inspected the additional supplied article only.
+
+For this revision, independent checks use scalar-square-completion minimization, QR energy inference, and normal-eigenmode stress work with a derivative-root search; author-only high-precision direct stress-tensor projection. Targets also use analytic uniaxial relaxation, Schur-complement identities, isotropic/auxetic limits, rational oblique extrema, and independently derived design singular values. Near-degenerate response targets are evaluated at the returned fit, avoiding amplification of permissible coefficient errors into a false failure.

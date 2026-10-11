@@ -1,0 +1,6 @@
+# Python and editor-generated files
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.DS_Store
+.venv/

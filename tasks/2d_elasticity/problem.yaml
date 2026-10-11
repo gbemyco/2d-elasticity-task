@@ -1,0 +1,195 @@
+domain: physics
+metadata:
+  author_name: Gbemi F. Abass
+  author_email: g.abass@unsw.edu.au
+  author_organization: School of Science, The University of New South Wales (UNSW) Australia
+  author_profile: https://www.linkedin.com/in/gbemi-abass/
+  conflicts_of_interest: No conflicts of interest declared.
+  subfield: Mechanics of two-dimensional materials
+  tags:
+  - 2D materials
+  - mechanics
+  - elasticity
+  - DFT
+  - anisotropy
+  expert_time_estimate_hours: 5.0
+  relevant_experience: PhD researcher specializing in computational materials physics/chemistry and solid-state
+    mechanics, with experience in first-principles modelling, elastic properties, strain-dependent behaviour, and
+    mechanical stability of two-dimensional (2D) materials and heterostructures.
+  difficulty_explanation: Solve mixed strain/zero-stress elastic boundary conditions, infer an identifiable areal
+    stiffness tensor, project uniaxial stress through engineering compliance, and resolve continuous extrema and
+    strict mechanical stability near soft modes.
+  solution_explanation: Block elimination for elastic relaxation; algebraic quadratic design and SVD least squares
+    for fitting; extended-precision compliance projection and stationary-point global extrema.
+  verification_explanation: Independent square-completion relaxation, constitutive-matrix QR regression, eigenmode
+    stress work and derivative-root extrema; analytic limits, calibrated boundaries, scientific mutants, final-output
+    perturbations, propagated reporting uncertainty, and clean-process numerical repetitions. Executed counts appear
+    in the separate author report.
+required_dependencies: import numpy as np
+problem_description_main: |-
+  The scientific input domain consists of finite real observations from completed electronic-structure calculations. NaN and positive or negative infinity represent missing or diverged physical records, not material parameters. They cannot define harmonic energy, a fit, or a loading response: reject every nonfinite numeric input with ValueError before computation, including freely relaxing initial guesses, component labels, and angles for an unstable fit. Reject complex-typed numeric inputs with ValueError instead of discarding imaginary components. This includes freely relaxing input guesses and empty complex-typed strain batches. Valid finite data can describe an unstable fitted tensor; Step 4 then returns the specified NaN response outputs.
+
+  Numerical precision convention: delta=1.4210854715202004e-14=64*2**(-52) is a dimensionless binary64 roundoff allowance. It is an internal comparison budget, not an input strain, stiffness, energy, area, or angle. Use this allowance only in the stated design-conditioning and coefficient-reporting bounds; strict mechanical positivity and the canonical-direction tie rule are unchanged.
+
+  Infer the harmonic in-plane elasticity of an unstressed orthotropic monolayer from total-energy differences. Resolve the difference between a clamped strain and a strain allowed to relax at zero conjugate stress, and predict sampled loading responses and true global Young-modulus extrema. No arbitrary slab thickness enters the areal stiffness.
+
+  The engineering strain is [epsilon_xx, epsilon_yy, gamma_xy], with gamma_xy=2*epsilon_xy. Its work-conjugate stress is [sigma_xx, sigma_yy, tau_xy]. The stiffness matrix is [[C11,C12,0],[C12,C22,0],[0,0,C66]], ordered in the input as [C11,C22,C12,C66] in N/m. Derive the harmonic work, constrained equilibrium, and directional response from this constitutive model. One eV/Angstrom^2 equals 16.02176634 N/m. DFT energies are relative to the unstrained zero-stress state and use its fixed in-plane area: there is no residual-stress term or intercept. Use a consistent atomic-coordinate relaxation convention for every energy record; the inferred stiffness describes that convention. The free components in Step 1 are macroscopic strain degrees of freedom, distinct from relaxation of atomic coordinates. Steps 1 and 2 interrogate the same harmonic constitutive model under prescribed and relaxed strain conditions; Steps 2 and 3 provide the inference and response needed by Step 4. Data may be noisy or mechanically unstable. Computation is offline with NumPy only.
+
+  Inputs are real numeric array-like values converted to floating arrays. Public shape, finiteness, range, and exception rules are given in each step. Input small-strain endpoints +/-0.03 are included. Relaxed outputs are formal equilibria of the harmonic model and may exceed this interval; such results signal that a physical small-strain interpretation needs care. The accuracy guarantees cover coefficient magnitudes up to 1e4 N/m, positive shear down to 1e-6 N/m, and positive normal determinant ratios (C11*C22-C12^2)/(C11*C22) down to 1e-8, with finite representable outputs. Admissibility and strict positivity must not be replaced by an absolute or relative mechanical-stability cutoff. A principal minor near a stability boundary must be classified at the represented input tensor: cancellation in rounded products must not turn a strictly positive minor into a singular one. Re-evaluate an ambiguous sign with sufficient precision; this changes no physical input range or response-accuracy guarantee.
+
+  An inferred tensor is the returned numerical least-squares fit. Classify its stability and determine its canonical directions at that tensor, rather than assuming that a source material's exact symmetry or phase boundary survives fitting. Accuracy for the inferred coefficients is distinct from accuracy of the mechanical response evaluated at those coefficients.
+problem_io: |-
+  def analyze_elastic_2d(strains, delta_energy_ev, area_ang2, angles_rad):
+      '''Fit a 2D orthotropic stiffness tensor and return stability and directional elastic properties.'''
+general_tests: tests/general.py
+second_solution: second_solution.py
+mutants:
+- name: whole_task_wrong_shear
+  description: Incorrect engineering-shear energy normalization changes fitted shear stiffness and off-axis mechanics.
+  file: mutants/whole_task_wrong_shear.py
+sub_steps:
+- step_number: 1
+  scaffold: steps/step_1.py
+  solution: solution/step_1.py
+  tests: tests/step_1.py
+  step_description_prompt: |-
+    Implement elastic_energy_density_2d(strains, stiffness_npm, free_components=()).
+
+    Scientific input-quality policy: NaN (np.nan), positive infinity (np.inf), and negative infinity (-np.inf) are invalid in strains, stiffness_npm, and free_components. Missing strain or stiffness values can arise in incomplete or diverged atomistic calculation records and cannot define a physical constrained equilibrium; an undefined component label cannot specify a boundary condition. Raise ValueError for any of these values before relaxation or an empty-batch return. Validate every supplied strain column, including freely relaxing initial guesses, even though a free guess does not determine the equilibrium. Nonfinite inputs must not be dropped, replaced, or propagated into the result.
+
+    Solve a mixed elastic boundary problem: hold the prescribed engineering-strain components fixed and allow the listed components to minimize the harmonic energy at zero conjugate stress. Derive the equilibrium from the work-conjugate constitutive model in the main prompt. Return the equilibrium strain, conjugate stress, and stored areal energy. This describes, for example, transverse relaxation of a uniaxially strained strip; a clamped curvature is generally different from the relaxed Young modulus.
+
+    Input domain and type validation: all supplied physical values and component labels must be finite. Reject complex-typed data in strains, stiffness_npm, or free_components with ValueError before relaxation. Validate all supplied strain columns, including freely relaxing initial guesses. A complex value in a free column is invalid even though its real guess does not determine equilibrium. An empty strain array of shape (0,3) is allowed only with a real numeric type; an empty complex-typed array must raise ValueError. These type rules apply before any empty-batch return.
+
+    Inputs: real finite strains of exactly shape (M,3), each component in [-0.03,0.03], including an empty (0,3) batch. stiffness_npm is real, finite, and exactly (4,), ordered [C11,C22,C12,C66] in N/m. free_components is a 1D array-like of distinct, finite integer-valued indices drawn from {0,1,2}; order is immaterial, and the default empty tuple clamps every component. Values in free input columns are initial guesses only and must not affect the equilibrium. Prescribed columns remain equal to their inputs.
+
+    The stiffness restricted to the free components must be strictly positive definite, so the constrained minimum is unique. No positive eigenvalue cutoff is allowed. Full Born stability is unnecessary: an unstable tensor may have a valid constrained minimum, and all-clamped negative energy curvature is permitted. All-free stable tensors relax to zero. Validate the free stiffness even for an empty batch. Relaxed outputs may exceed the input strain interval and are formal harmonic-model equilibria.
+
+    Return a Python dict with exactly three keys: relaxed_strains (floating NumPy ndarray (M,3), dimensionless engineering strains); stress_npm (floating NumPy ndarray (M,3), work-conjugate stress in N/m); energy_density_ev_ang2 (floating NumPy ndarray (M,), stored energy in eV/Angstrom^2). Use 1 eV/Angstrom^2 =16.02176634 N/m. Raise ValueError for invalid shapes, complex-typed inputs, out-of-range input strains, invalid free indices, or a nonpositive-definite free block. Absolute-plus-relative accuracy: strains atol=1e-10, rtol=1e-9; stress atol=1e-8 N/m, rtol=1e-9; energy atol=1e-12 eV/Angstrom^2, rtol=1e-10. No earlier function is required.
+  function_header: |-
+    def elastic_energy_density_2d(strains, stiffness_npm, free_components=()):
+        '''Relax free engineering strains at zero conjugate stress and return energy and stress.'''
+  return_line: return result
+  step_background: Mixed displacement and traction constraints determine which elastic degrees of freedom relax.
+    The minimized harmonic energy is a Schur-complement response.
+  n_test_cases: 28
+  contract:
+    quantity: Constrained harmonic equilibrium strain, stress, and stored areal energy.
+    assumptions: Unstressed orthotropic engineering-strain model; fixed prescribed components and zero conjugate
+      stress on free components.
+    result_kind: exact
+    valid_input_ranges: Finite (M,3) input strains in [-0.03,0.03]; finite stiffness (4,); distinct integer-valued
+      free indices0..2; free block strictly positive definite. Empty batches and unstable full tensors with valid
+      free blocks are allowed.
+    units: Energy eV/Angstrom^2; stress N/m; strain dimensionless.
+    output_shape: 'Dict: relaxed_strains and stress_npm (M,3) float ndarrays; energy_density_ev_ang2 (M,) float
+      ndarray.'
+    step_dependencies: []
+  mutants:
+  - name: wrong_shear_factor
+    description: Doubles engineering shear stiffness, corrupting the clamped energy and conjugate stress.
+    file: mutants/step_1_wrong_shear_factor.py
+- step_number: 2
+  scaffold: steps/step_2.py
+  solution: solution/step_2.py
+  tests: tests/step_2.py
+  step_description_prompt: |-
+    Implement fit_stiffness_2d(strains, delta_energy_ev, area_ang2).
+
+    Scientific input-quality policy: NaN (np.nan), positive infinity (np.inf), and negative infinity (-np.inf) are invalid in strains, delta_energy_ev, and area_ang2. These inputs are observations from completed atomistic calculations. An incomplete or diverged calculation supplies no physical strain, energy observation, or reference area, so it cannot define the harmonic fitting problem. Raise ValueError for any of these values before regression, even if the other records form an identifiable design. Nonfinite inputs must not be dropped, replaced, or propagated into fitted coefficients.
+
+    Infer [C11,C22,C12,C66] in N/m from the harmonic work law and the supplied total-energy differences. The required result is the unique minimizer of the unweighted sum of squared energy residuals with the zero-strain reference fixed. Energies equal unstrained area times areal energy density. Choose a numerically stable inversion strategy; no particular matrix factorization or NumPy solver is prescribed. Derive coefficient sensitivities directly and algebraically from the engineering strains. Internal equilibration is permitted if the returned coefficients solve the original unweighted problem; all signal, rank, and conditioning decisions below refer to the original raw physical design. Do not form it from approximate energy outputs of elastic_energy_density_2d: that function has an independent absolute error budget that can be amplified by regression. No earlier function is needed. Do not add an intercept, linear term, positivity constraint, clipping, or weighting, including for noisy or unstable data.
+
+    Inputs: real array-like strains exactly (M,3), finite components in [-0.03,0.03]; real array-like delta_energy_ev exactly (M,), finite energy differences in eV relative to zero strain; area_ang2 a finite scalar >0 in Angstrom^2. Require M>=4. Reject complex-typed strains, energies, or area with ValueError rather than discarding imaginary components.
+
+    Let X be the raw physical design in which each row's coefficient multiplies [C11,C22,C12,C66] before unit conversion. Each X-column RMS sqrt(mean(X[:,j]^2)) must be >=1e-6; X must have full column rank and unscaled spectral condition number sigma_max/sigma_min <=1000. Both threshold endpoints are included. Do not assess a column-normalized substitute for X. Use the fixed dimensionless binary64 allowance delta=1.4210854715202004e-14=64*2**(-52). Endpoint decisions use RMS >=1e-6*(1-delta) and cond2 <=1000*(1+delta). This is an internal arithmetic comparison budget, not a supplied physical observation or a mechanical-stability threshold.
+
+    Raise ValueError for invalid shapes, complex-typed inputs, nonpositive or nonscalar area, out-of-range strains, M<4, insufficient column RMS, rank deficiency, or a condition number exceeding that numerical limit. Return a floating NumPy ndarray of exactly shape (4,) in the specified order. For exact-model data compare to true stiffness with atol=1e-5 N/m, rtol=1e-8; for noisy data compare to the unique ordinary least-squares minimizer with atol=1e-4 N/m, rtol=1e-5. These tolerances do not bound noise-induced departure from the underlying material tensor.
+  function_header: |-
+    def fit_stiffness_2d(strains, delta_energy_ev, area_ang2):
+        '''Fit [C11, C22, C12, C66] in N/m from finite-strain DFT energy differences.'''
+  return_line: return stiffness
+  step_background: DFT energy differences equal unstrained 2D cell area multiplied by areal energy density.
+  n_test_cases: 30
+  contract:
+    quantity: Least-squares orthotropic stiffness vector.
+    assumptions: Harmonic engineering-strain model; fixed unstrained area. Unweighted regression, no intercept or
+      stability constraint.
+    result_kind: approximate
+    valid_input_ranges: M>=4; finite inputs; |strain|<=0.03; area>0; all X-column RMS>=1e-6; full rank; cond2(X)<=1000.
+    units: N/m
+    output_shape: (4,) float ndarray, [C11,C22,C12,C66]
+    step_dependencies: []
+  mutants:
+  - name: missing_unit_conversion
+    description: Treats eV/Angstrom^2 as N/m.
+    file: mutants/step_2_missing_unit_conversion.py
+- step_number: 3
+  scaffold: steps/step_3.py
+  solution: solution/step_3.py
+  tests: tests/step_3.py
+  step_description_prompt: |-
+    Implement directional_moduli_2d(stiffness_npm, angles_rad).
+
+    Scientific input-quality policy: NaN (np.nan), positive infinity (np.inf), and negative infinity (-np.inf) are invalid in stiffness_npm and angles_rad. A missing or diverged material coefficient cannot define an elastic tensor, and an undefined loading direction cannot define a uniaxial loading experiment. Raise ValueError for any of these values before compliance inversion or directional response evaluation, even if the other coefficients describe a stable material. Nonfinite inputs must not be dropped, replaced, or propagated into response arrays.
+
+    Predict Young's modulus E and Poisson ratio nu under unit uniaxial in-plane stress along n=(cos(theta),sin(theta)) and zero other applied stress, with transverse direction m=(-sin(theta),cos(theta)). Use the orthotropic engineering constitutive matrix and gamma_xy=2*epsilon_xy in the main prompt. Derive the tensor projection; nu is minus transverse/axial strain and E is stress/axial strain.
+    Input domain and type validation: stiffness_npm and angles_rad contain finite physical values. Reject complex-typed stiffness or angles with ValueError rather than discarding imaginary components.
+
+    Inputs: real array-like finite stiffness_npm exactly (4,), [C11,C22,C12,C66] in N/m; angles_rad a nonempty finite real 1D array-like in radians counterclockwise from +x, including negative or multiple-period angles. Require strict Born stability C11>0, C22>0, C66>0, C11*C22-C12^2>0. No positive-determinant or positive-shear numerical cutoff is allowed. Raise ValueError for unstable stiffness, wrong shapes, complex-typed inputs, empty angles, or angles of dimension other than 1.
+    Return a tuple (young_npm, poisson) of two floating NumPy ndarrays, each exactly angles_rad.shape. E has units N/m and nu is dimensionless; anisotropic nu may exceed 1, so do not clip it. For finite representable outputs in the main prompt's calibrated regimes use absolute-plus-relative tolerances E atol=1e-8 N/m, rtol=1e-9; nu atol=1e-10, rtol=1e-9. No earlier function is required.
+  function_header: |-
+    def directional_moduli_2d(stiffness_npm, angles_rad):
+        '''Return orientation-dependent Young's modulus (N/m) and Poisson ratio for a stable 2D orthotropic material.'''
+  return_line: return young_npm, poisson
+  step_background: Tensor strain has exy=gxy/2 even though the constitutive vector uses engineering shear.
+  n_test_cases: 21
+  contract:
+    quantity: Directional Young's modulus and Poisson ratio.
+    assumptions: Stable orthotropic plane-stress 2D material; engineering shear.
+    result_kind: exact
+    valid_input_ranges: Finite, strictly Born-stable stiffness (4,); nonempty finite 1D angles in rad.
+    units: Young N/m; Poisson dimensionless
+    output_shape: Tuple of float ndarrays, each angles_rad.shape
+    step_dependencies: []
+  mutants:
+  - name: wrong_poisson_sign
+    description: Reverses the longitudinal/transverse Poisson sign.
+    file: mutants/step_3_wrong_poisson_sign.py
+- step_number: 4
+  scaffold: steps/step_4.py
+  solution: solution/step_4.py
+  tests: tests/step_4.py
+  step_description_prompt: |-
+    Implement analyze_elastic_2d(strains, delta_energy_ev, area_ang2, angles_rad).
+
+    Scientific input-quality policy: NaN (np.nan), positive infinity (np.inf), and negative infinity (-np.inf) are invalid in strains, delta_energy_ev, area_ang2, and angles_rad. Incomplete or diverged atomistic calculation records, or an undefined loading direction, cannot define an integrated elastic analysis. Raise ValueError for any of these values before fitting or stability branching. This input validation applies to both stable and unstable fitted tensors; nonfinite inputs must not be dropped, replaced, or propagated into the result. The specified NaN response outputs describe a valid finite but mechanically unstable fitted tensor and do not permit nonfinite input records.
+
+    Use the supplied public fit_stiffness_2d (step 2) and, for a Born-stable fit, directional_moduli_2d (step 3). Retain the vector returned by this public fitting dependency, classify its strict Born stability, predict the sampled response, and determine the true global minimum and maximum Young's modulus over all in-plane directions. The angle samples only specify where to return the directional arrays: global extrema and anisotropy must not be estimated from this grid. Choose a reliable continuous method that resolves an interior oblique extremum as well as principal-axis extrema.
+    Input domain and type validation: strains, delta_energy_ev, area_ang2, and angles_rad contain finite physical values. Reject complex-typed data with ValueError before stability branching. Invalid shapes and complex angles remain invalid when the fitted tensor is unstable.
+
+    The step-2 input rules apply. angles_rad must be nonempty, finite, real, and 1D even for an unstable fit. Born stability means all C11,C22,C66>0 and C11*C22-C12^2>0. Return a Python dict with EXACTLY nine keys: stiffness_npm (floating NumPy ndarray (4,), N/m, ordered [C11,C22,C12,C66]); born_stable (Python bool); young_npm and poisson (floating NumPy ndarrays exactly angles_rad.shape, N/m and dimensionless); young_min_npm and young_max_npm (Python floats, continuous global extrema, N/m); anisotropy_ratio (Python float, global Emax/Emin); theta_young_min_rad and theta_young_max_rad (Python floats, canonical extremum directions in [0,pi/2] radians, not necessarily input samples). Orthotropic symmetry permits this quadrant. If distinct stationary extrema or quadrant endpoints have extremal Young moduli agreeing within relative 1e-10, choose the smallest such angle. Apply this single canonical rule to every fitted tensor, including the isotropic limit. If the quadrant endpoints and all stationary extrema agree within this relative tie rule, both canonical extremum directions are zero. Nearby nonstationary angles are not alternative tied extrema.
+    For an unstable fit retain fitted stiffness, return born_stable=False, both sampled arrays all NaN, and all five scalar summaries Python float NaN; do not compute directional moduli. Raise ValueError for invalid shapes, complex-typed data, out-of-range strains, nonpositive or nonscalar area, insufficient data or design identifiability, and empty or multidimensional angles, as specified in steps 2-3. Stiffness accuracy is step 2's. At the RETURNED fitted tensor, sampled response and global E extrema use step 3's E/nu tolerances; anisotropy atol=1e-8, rtol=1e-8, and unique extremum directions atol=1e-7 rad, rtol=1e-7. All response, stability, and direction guarantees refer to the RETURNED tensor. Coefficient fitting errors can change phase classification or symmetry near a boundary and can be amplified by soft modes; no bound on source-material response is asserted there. For unique canonical directions the stated angle tolerance applies; tied-direction selection follows the specified relative 1e-10 rule applied to the fitted constitutive model itself, independently of permitted error in a sampled-response helper. Continuous response comparisons additionally propagate a componentwise relative 1e-12 reporting uncertainty in the fitted stiffness, with a 64*machine-epsilon roundoff guard. This is an observation precision for continuous quantities, not a mechanical-stability cutoff or a change to the canonical tie rule. Use delta=1.4210854715202004e-14=64*2**(-52), an internal binary64 roundoff allowance rather than a physical input. For a stable reported tensor set eta=1e-12+delta, r=abs(C12)/sqrt(C11*C22), lambda_normal=(C11*C22-C12^2)/(C11*C22*(1+r)), and rho=max(eta,eta*(1+r)/lambda_normal). This bounds the componentwise reporting perturbation relative to the positive stiffness matrix. For rho<1 the additional Young uncertainty is rho*abs(E), the additional Poisson uncertainty is (1+rho)*rho/(1-rho)*(sqrt(q_transverse/q_axial)+abs(nu)), and the additional anisotropy uncertainty is 2*rho/(1-rho)*abs(anisotropy). Here q_axial and q_transverse are the longitudinal compliances under unit stress along the loading and perpendicular directions. Add these bounds to the stated response budgets. Compare extremum values with independently resolved continuous extrema; the tolerance on a reported direction must not introduce an extra value constraint at that approximate angle.
+  function_header: |-
+    def analyze_elastic_2d(strains, delta_energy_ev, area_ang2, angles_rad):
+        '''Fit a 2D orthotropic stiffness tensor and return stability and directional elastic properties.'''
+  return_line: return result
+  step_background: A sparse angle grid can miss a compliant oblique loading direction; the extrema must be global
+    rather than sampled.
+  n_test_cases: 28
+  contract:
+    quantity: Integrated stiffness inference, Born stability, sampled response, and continuous global directional
+      anisotropy.
+    assumptions: Harmonic model and conventions of steps 2 and 3.
+    result_kind: approximate
+    valid_input_ranges: Valid step-2 inputs (including conditioning) and finite nonempty 1D angles; unstable fitted
+      tensors permitted.
+    units: Stiffness and Young N/m; angles rad; Poisson and anisotropy dimensionless.
+    output_shape: Dict with exactly nine keys and specified array shapes.
+    step_dependencies:
+    - 2
+    - 3
+  mutants:
+  - name: sampled_extrema
+    description: Mistakes angular-grid extrema for global material extrema.
+    file: mutants/step_4_sampled_extrema.py
